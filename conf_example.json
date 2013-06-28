@@ -1,0 +1,5 @@
+{
+ "logfile"        : "/usr/local/nagios/libexec/SGEdaemon/SGEOpsview.log",
+ "loglevel"       : "INFO",
+ "check_interval" : "120"
+}
