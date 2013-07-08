@@ -10,7 +10,7 @@ As prerequisite, on the machine where the service will run the following package
 * python-daemon
 * python-simplejson
 
-The sgeopsview init.d script located in the repository supports the standard linux service options (_start_, _stop_, _status_ and _restart_) and adds _sync_ as additional feature (we will further explain it in the following).
+The sgeopsview init.d script located in the repository supports the standard linux service options (start, _stop_, _status_ and _restart_) and adds _sync_ as additional feature (we will further explain it in the following).
 
 The daemon essentially consists of two different python modules: **SGEOpsview.py** and **OpsviewREST.py**.
 
@@ -49,5 +49,5 @@ The other options supported by the daemon are:
 The service *sgeopsview* can be started/stopped using the 'service' Red Hat utility. If you wish to start it and carrying out SGE - Opsview sensors/services synchronization before, you can just type the following command:
 
 <pre><code>
-[root@nfs-1 ~]# service sgeopsview sync
+$ service sgeopsview sync
 </pre></code>
