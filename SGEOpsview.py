@@ -256,8 +256,24 @@ def parseHostsState(loadSensorsToMonitor):
             elif 'alarm' in line and 'load-threshold' in line: #needed to check if the queue is not in u for forecast?
                  #splitting the line for retrieving sensors in alarm condition and their values
                  currentAlarmedSensor=line.split('=')[0].split(':')[1]
-                 currentAlarmedSensorValue=float(line.split('=')[1].split()[0])
+                 currentAlarmedSensorValueRaw=line.split('=')[1].split()[0]
 
+                 #handling the special case of node memory check (G|M)
+                 if '.' in currentAlarmedSensorValueRaw:
+                    currentAlarmedSensorValue=currentAlarmedSensorValueRaw.split('.')[0]
+                    unit=currentAlarmedSensorValueRaw.split('.')[1][-1]
+
+                    if unit == 'G':
+                       currentAlarmedSensorValue=float(currentAlarmedSensorValue)
+                    elif unit == 'M': 
+                       currentAlarmedSensorValue=float(currentAlarmedSensorValue)/1024
+
+                    logger.debug('currentAlarmedSensor: %s', currentAlarmedSensorValue)
+                    logger.debug('unit: %s', unit)
+
+                 else:
+                    currentAlarmedSensorValue=float(currentAlarmedSensorValueRaw)
+                    
                  if currentAlarmedSensor not in alarmedSensors.keys():
                     alarmedSensors[currentAlarmedSensor]=currentAlarmedSensorValue
 
