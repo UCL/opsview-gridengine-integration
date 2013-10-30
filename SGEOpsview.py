@@ -40,7 +40,7 @@ def checkCmpOperations(operation):
 
 
 
-def checkNodesState(loadSensorsDataDict,nodesSensorsDataDict,warning=0.85):
+def checkNodesState(loadSensorsDataDict,nodesSensorsDataDict,hostSensorsDict,warning=0.85):
     '''checks the dictionary containing the hosts information and generates the output for Nagios/Opsview
        the third parameter warning is not currently being used because we're not generating warning for load sensor values
        close to the threshold'''
@@ -54,39 +54,38 @@ def checkNodesState(loadSensorsDataDict,nodesSensorsDataDict,warning=0.85):
         for currentSensor in loadSensorsDataDict.keys():
             validAlarmCondition=checkCmpOperations(loadSensorsDataDict[currentSensor][0])
             if validAlarmCondition>0:
-               #logger.debug('current node: %s, current sensor: %s, value: %f, threshold: %f',currentNode,currentSensor,nodesSensorsDataDict[currentNode][currentSensor],loadSensorsDataDict[currentSensor][1])
-               exec(
-               #checking and set failure only for those values whose alarm condition is verified but in alarm state also in the SGE queue. Setting critical
-               "if int(nodesSensorsDataDict[currentNode][currentSensor][0]) " + validAlarmCondition + " int(loadSensorsDataDict[currentSensor][2]) and len(nodesSensorsDataDict[currentNode][currentSensor])>1:\n" +
-               "   nodesOpsviewDataDict[currentNode][currentSensor]=2\n" +
-               "   logger.debug('ALARM: %s, %s', currentNode, currentSensor)\n" +
+               if currentSensor in hostSensorsDict[currentNode].keys():
+                  ###logger.debug('current node: %s, current sensor: %s, value: %s threshold: %s',currentNode,currentSensor,nodesSensorsDataDict[currentNode][currentSensor],loadSensorsDataDict[currentSensor][2])
+                  exec(
+                  #checking and set failure only for those values whose alarm condition is verified but in alarm state also in the SGE queue. Setting critical
+                  "if int(nodesSensorsDataDict[currentNode][currentSensor][0]) " + validAlarmCondition + " int(hostSensorsDict[currentNode][currentSensor]) and len(nodesSensorsDataDict[currentNode][currentSensor])>1:\n" +
+                  "   nodesOpsviewDataDict[currentNode][currentSensor]=2\n" +
 
-               #this implementation doesn't take care of values close to the threshold and doesn't generate warning for them
-               #"elif nodesSensorsDataDict[currentNode][currentSensor][0] " + validAlarmCondition +  " float(warning*loadSensorsDataDict[currentSensor][2]) and loadSensorsDataDict[currentSensor][1]!='INT':\n" +
-               #"     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
-                
-               #setting unknown for load sensors whose queues are uncontactable
-               "elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
-		"     nodesOpsviewDataDict[currentNode][currentSensor]=3\n" +
+                  #this implementation doesn't take care of values close to the threshold and doesn't generate warning for them
+                  #"elif nodesSensorsDataDict[currentNode][currentSensor][0] " + validAlarmCondition +  " float(warning*loadSensorsDataDict[currentSensor][2]) and loadSensorsDataDict[currentSensor][1]!='INT':\n" +
+                  #"     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
+               
+                  #setting unknown for load sensors whose queues are uncontactable
+                  "elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
+                  "     nodesOpsviewDataDict[currentNode][currentSensor]=3\n" +
 
-               ##setting warning for SGE unknown values (old implementation)
-               #"elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
-               #"     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
+                  ##setting warning for SGE unknown values (old implementation)
+                  #"elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
+                  #"     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
 
-               #setting warning for load sensors whose queues are in 'c' and 'E' states
-               "elif nodesSensorsDataDict[currentNode][currentSensor][0]==-2 or nodesSensorsDataDict[currentNode][currentSensor][0]==-3:\n" +
-               "     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
+                  #setting warning for load sensors whose queues are in 'c' and 'E' states
+                  "elif nodesSensorsDataDict[currentNode][currentSensor][0]==-2 or nodesSensorsDataDict[currentNode][currentSensor][0]==-3:\n" +
+                  "     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
 
-               #for now we are managing values not available after parsing qstat output as warnings (TODO: check if it is correct)
-               "elif nodesSensorsDataDict[currentNode][currentSensor][0]==-255:\n" +
-               "     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
+                  #for now we are managing values not available after parsing qstat output as warnings (TODO: check if it is correct)
+                  "elif nodesSensorsDataDict[currentNode][currentSensor][0]==-255:\n" +
+                  "     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
 
-               #setting OK for all the other cases
-               "else: nodesOpsviewDataDict[currentNode][currentSensor]=0\n"
-               )
+                  #setting OK for all the other cases
+                  "else: nodesOpsviewDataDict[currentNode][currentSensor]=0\n"
+                  )
             else:
-               raise UnboundLocalError('Cannot manage alarm condition: ', validAlarmCondition)
-
+                  raise UnboundLocalError('Cannot manage alarm condition: ', validAlarmCondition)
 
     logger.debug('Data that will be sending to Opsview: %s',nodesOpsviewDataDict)
     return nodesOpsviewDataDict
@@ -184,7 +183,7 @@ def generateGroups(hostList):
     
 
 def getSensorsInfo(hostGroup, hostsInfo):
-    '''creates a dictionary described how the different load sensors defined in SGE are mapped on the nodes'''
+    '''creates a dictionary that describes how load sensors defined in SGE are mapped on the nodes'''
     
     logger.debug('Collecting sensors\' information from SGE for hosts: %s', hostGroup)
 
@@ -202,10 +201,14 @@ def getSensorsInfo(hostGroup, hostsInfo):
                thresholds = line.split('       ')[1]
                for currentThreshold in thresholds.split():
                    if currentThreshold.split('=')[0] not in hostThreshold.keys():
-                       hostThreshold[currentThreshold.split('=')[0]] = currentThreshold.split('=')[1]
+                      if 'G' in currentThreshold.split('=')[1]:
+                         hostThreshold[currentThreshold.split('=')[0]]=int(currentThreshold.split('=')[1][0:-1])*1024
+                      elif 'M' in currentThreshold.split('=')[1]:
+                         hostThreshold[currentThreshold.split('=')[0]]=int(currentThreshold.split('=')[1][0:-1])
+                      else:
+                         hostThreshold[currentThreshold.split('=')[0]] = currentThreshold.split('=')[1]
         if hostName not in hostsInfo.keys():
            hostsInfo[hostName] = hostThreshold
-
 
 
 def parseHostsState(loadSensorsToMonitor):
@@ -258,18 +261,19 @@ def parseHostsState(loadSensorsToMonitor):
                  currentAlarmedSensor=line.split('=')[0].split(':')[1]
                  currentAlarmedSensorValueRaw=line.split('=')[1].split()[0]
 
-                 #handling the special case of node memory check (G|M)
-                 if '.' in currentAlarmedSensorValueRaw:
-                    currentAlarmedSensorValue=currentAlarmedSensorValueRaw.split('.')[0]
-                    unit=currentAlarmedSensorValueRaw.split('.')[1][-1]
+                 if '-' in currentAlarmedSensorValueRaw:
+                     logger.info('---NEGATIVE---- %s', currentAlarmedSensorValueRaw)
+                     currentAlarmedSensorValue=-1
+
+                 #handling the special case of node memory check (G|M) load sensors
+                 elif '.' in currentAlarmedSensorValueRaw:
+                    currentAlarmedSensorValue=currentAlarmedSensorValueRaw[0:-1]
+                    unit=currentAlarmedSensorValueRaw[-1]
 
                     if unit == 'G':
-                       currentAlarmedSensorValue=float(currentAlarmedSensorValue)
+                       currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))*1024
                     elif unit == 'M': 
-                       currentAlarmedSensorValue=float(currentAlarmedSensorValue)/1024
-
-                    logger.debug('currentAlarmedSensor: %s', currentAlarmedSensorValue)
-                    logger.debug('unit: %s', unit)
+                       currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))
 
                  else:
                     currentAlarmedSensorValue=float(currentAlarmedSensorValueRaw)
@@ -286,11 +290,16 @@ def parseHostsState(loadSensorsToMonitor):
                 for checkSensor in loadSensorsToMonitor:
                     if ':'+checkSensor+'='  in line and 'threshold' not in line and 'forecast' in checkSensor: #forecast is a global sensor whose value is independent from the host queue status
                        loadSensorsValues[checkSensor]=float(line.split('=')[1])
-                    elif ':'+checkSensor+'='  in line and 'threshold' not in line and (queueState == 'n' or queueState == 'd'):  #this condition catches non alarmed 'normal' and 'disabled' queues
-                       loadSensorsValues[checkSensor]=float(line.split('=')[1])
+                    elif ':'+checkSensor+'='  in line and 'threshold' not in line and (queueState == 'n' or queueState == 'd' or queueState == 'o'):  #this condition catches non alarmed 'normal', 'disabled' and 'obsolete' queues
+                       if 'M' in line.split('=')[1]:
+                           loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))
+                       elif 'G' in line.split('=')[1]:
+                           loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))*1024
+                       else:
+                           loadSensorsValues[checkSensor]=float(line.split('=')[1])
                     elif ':'+checkSensor+'='  in line and 'threshold' not in line and 'u' in queueState: #this condition only deals with non alarmed u status (u, du)
                        loadSensorsValues[checkSensor]=-1
-           
+                                
            
         #adding the information for the current node to the hosts dictionary vith the collected load sensors values
         if currentNode!='':
@@ -311,11 +320,11 @@ def parseHostsState(loadSensorsToMonitor):
                #the current load sensor is in unknown state for the current host...
                elif currentSensorToCheck in unknownSensors.keys():
                     #... but not initialized from other queues check
-                    if currentSensorToCheck not in hosts_dict[currentNode].keys():
+                    if currentSensorToCheck not in hosts_dict[currentNode].keys() or  hosts_dict[currentNode][currentSensorToCheck]==[-255]:
                        hosts_dict[currentNode][currentSensorToCheck] = [unknownSensors[currentSensorToCheck]]
                #the current load sensor is in normal state for the current host...
                elif currentSensorToCheck in loadSensorsValues.keys():
-                    if currentSensorToCheck not in hosts_dict[currentNode].keys():
+                    if currentSensorToCheck not in hosts_dict[currentNode].keys() or  hosts_dict[currentNode][currentSensorToCheck]==[-255]:
                        hosts_dict[currentNode][currentSensorToCheck] = [loadSensorsValues[currentSensorToCheck]]
                else: #there are no information for the current sensor in current host
                     if currentSensorToCheck not in hosts_dict[currentNode].keys():
@@ -402,19 +411,23 @@ def checkLoop(loadSensors, doSync, checkTime=120, envFile='/usr/local/nagios/lib
                  sensorsInfo = checkSensorsExistance(SGEglobal)
    
               except UnboundLocalError, e:
-                  logger.error('One of the requested load sensors does not exist into Opsview')     
+                  logger.error('One of the requested load sensors does not exist into SGE')     
                   sys.exit(-1)
 
               syncGlobalServices(SGEglobal, OPS, opsviewServer, opsviewHeaders, opener)
-              syncHostsServices(SGEHost, OpsHost, opsviewServer, opsviewHeaders, opener, hostsgroup)
+                 
+              #updating host dict again to include new sensors added to the template!
+              SGEglobal, SGEHost, OpsHost, hostsgroup = getHostsServicesFromSGEAndOpsview(opsviewServer, opsviewHeaders, opener)
 
+              syncHostsServices(SGEHost, OpsHost, opsviewServer, opsviewHeaders, opener, hostsgroup)
               rest.reloadConfiguration(opsviewServer, opsviewHeaders, opener)
 
               #storing permanently the current environment for next daemon execution without the -s flag
               environment = dict()
               environment['hostsgroup']=hostsgroup
               environment['SGEglobal']=SGEglobal
-     
+              environment['SGEHost']=SGEHost      
+  
               logger.debug('Environment file is %s', envFile)
  
               f = open(envFile, 'w')
@@ -435,6 +448,7 @@ def checkLoop(loadSensors, doSync, checkTime=120, envFile='/usr/local/nagios/lib
               #loading parameters from the environment file
               hostsgroup = environment['hostsgroup']
               SGEglobal = environment['SGEglobal']
+              SGEHost = environment['SGEHost']
 
               logger.debug('Previously stored load sensor list:\n%s', pprint.pformat(SGEglobal))
 
@@ -448,14 +462,14 @@ def checkLoop(loadSensors, doSync, checkTime=120, envFile='/usr/local/nagios/lib
     while True:
           try:
              nodesSensorsData = parseHostsState(SGEglobal.keys())
-             opsviewNodesStatus = checkNodesState(sensorsInfo,nodesSensorsData)
+             opsviewNodesStatus = checkNodesState(sensorsInfo,nodesSensorsData,SGEHost)
              generateNSCAMessages(nodesSensorsData,opsviewNodesStatus,hostsgroup)
              logger.debug('Sleeping for %s seconds',checkTime)
              time.sleep(checkTime)
 
           except UnboundLocalError, e: #new exception types should be created
-             logger.error('A problem occurred while checking nodes state', e) 
-
+             logger.error('A problem occurred while checking nodes state %s', e) 
+             #logger.error('A problem occurred while checking nodes state')
 
 
 def getGlobalServicesFromOpsview(opsviewServer, opsviewHeaders, opener):
@@ -494,14 +508,16 @@ def getHostsServicesFromSGEAndOpsview(opsviewServer, opsviewHeaders, opener):
     logger.debug('Collected information from SGE for each host:\n %s', pprint.pformat(hostsInfo))
   
     globalSensorsList = generateGlobalSensorsList(hostsInfo)
-    logger.debug('Collected information from SGE regarding all the defined load sensors:\n %s', pprint.pformat(globalSensorsList))   
+    logger.debug('Collected information from SGE regarding all the defined load sensors:\n %s', pprint.pformat(globalSensorsList))
+
+    logger.debug('Collected information from Opsview on sensors:\n %s', pprint.pformat(opsviewHostsDict))
    
     return globalSensorsList, hostsInfo, opsviewHostsDict, group
 
 
 
 def syncHostsServices(SGEHostsServices, opsviewHostsServices, opsviewServer, opsviewHeaders, opener, hostsgroup):
-    #deleting opsview services from hosts where the associated load sensor do not exist
+    #deleting opsview services from hosts where the associated load sensors do not exist
 
     logger.info('Synchronizing services between SGE and Opsview for each host')
 
@@ -513,7 +529,7 @@ def syncHostsServices(SGEHostsServices, opsviewHostsServices, opsviewServer, ops
                   if service['name'] in SGEHostsServices[host]:
                      existingServices.append(service)
               opsviewHostsServices[host]['servicechecks'] = existingServices
-        
+    
     #TODO: adding opsview services into hosts where the associated load sensor exist and do not into opsview? 
 
     #single thread update
