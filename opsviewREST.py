@@ -1,20 +1,3 @@
-# Copyright (c) 2013, UCL
-# All rights reserved.
-
-# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-# Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-# Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided 
-# with the distribution.
-
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
-# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
-# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN 
-# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
 #!/usr/bin/python
 
 import sys, urllib, urllib2, getopt, datetime, logging
@@ -39,7 +22,7 @@ def SetLogger(logfile, loglevel, runForeground):
 
     
 
-def opsviewAuthentication(opsview_url='', opsview_user = '', opsview_password = ''):
+def opsviewAuthentication(opsview_url='http://mon02.external.legion.ucl.ac.uk:3000/', opsview_user = 'admin', opsview_password = 'M4Jd+jcQ'):
     '''creates a connection to the opsview server and allow authentication with the provided credentials. The three returned parameters 
        have to be used for subsequent interactions with the server'''
 
@@ -99,11 +82,11 @@ def deleteHostService(opsview_url, headers, ops_opener, hostName, serviceToDelet
 
     try:
         ops = ops_opener.open(request)
-        print "Retrieved Host information:"
         jdata = json.loads(ops.read())
+        logger.debug('Retrieved Host information %s\n:', jdata)
 
     except urllib2.URLError, e:
-        print("Cannot list existing services. %s: %s" % (e.code, e.read()))
+        logger.error('Cannot list existing services. %s: %s', e.code, e.read())
         sys.exit(-1)
   
     #looking for the json element to delete
@@ -118,21 +101,19 @@ def deleteHostService(opsview_url, headers, ops_opener, hostName, serviceToDelet
 
     try:
         ops = ops_opener.open(request)
-        print "Host updating:"
         jdata = json.loads(ops.read())
-        print (jdata)
+        logger.debug('Host updating: \n%s', jdata)
 
     except urllib2.URLError, e:
-        print("Cannot update host %s. %s: %s" % (hostName, e.code, e.read()))
+        logger.error('Cannot update host %s. %s: %s', hostName, e.code, e.read())
 
 
 
 def fetchServerInfo(opsview_url, headers, ops_opener):
     # Fetch server info
     url = opsview_url + "rest/serverinfo"
-
     request = urllib2.Request(url, None, headers)
-    print ops_opener.open(request).read()
+    logger.debug(ops_opener.open(request).read())
 
 
 
@@ -168,7 +149,6 @@ def retrieveHostsServices(opsviewDict, opsview_url, headers, ops_opener):
 
     #retrieving Host services for all the nodes   
     url = opsview_url + 'rest/config/host?rows=all'
-    #url = opsview_url + 'rest/config/host'
     logger.info('Retrieving services information from Opsview for all the hosts')
    
     request = urllib2.Request(url, None, headers)
@@ -178,11 +158,13 @@ def retrieveHostsServices(opsviewDict, opsview_url, headers, ops_opener):
         logger.debug('Existing services:\n %s', pprint.pformat(jdata))
 
     except urllib2.URLError, e:
-        print("Cannot list host services. %s: %s" % (e.code, e.read()))
+        logger.error('Cannot list host services. %s: %s', e.code, e.read())
         sys.exit(-1)
 
     for host in jdata['list']:
         opsviewDict[host['name']]=host
+    logger.debug('opsviewDict:\n %s', pprint.pformat(opsviewDict))
+
 
 
 def modifyHostsServices(opsviewDict, opsview_url, headers, ops_opener):
@@ -200,20 +182,51 @@ def modifyHostsServices(opsviewDict, opsview_url, headers, ops_opener):
 
 
 
+def cloneHost(opsview_url, headers, ops_opener, hostName, ip, group, hostToCloneId='2'):
+    url = opsview_url + 'rest/config/host/' + hostToCloneId
+    request = urllib2.Request(url, None, headers)
+
+    try:
+        ops = ops_opener.open(request)
+        jdata = json.loads(ops.read())
+        logger.debug('Host template: \n%s', jdata)
+
+    except urllib2.URLError, e:
+        logger.error('Could not get host template. %s: %s', e.code, e.read())
+
+    del jdata['object']['id']
+    del jdata['object']['keywords']
+ 
+    jdata['object']['name']=hostName
+    jdata['object']['ip']=ip
+    jdata['object']['hostgroup']['name']=group
+
+    #posting the host template as new host
+    url = opsview_url + 'rest/config/host/'
+    request = urllib2.Request(url, json.dumps(jdata), headers)
+
+    try:
+        ops = ops_opener.open(request)
+        jdata = json.loads(ops.read())
+        logger.debug('Host cloning: \n%s', jdata)
+
+    except urllib2.URLError, e:
+        logger.error('Cannot clone host %s. %s: %s', hostName, e.code, e.read())
+
+
+
 def cloneService(opsview_url, headers, ops_opener, serviceName, serviceToCloneId='224'):
-    
     #getting the json object for service node temperature and using it as service template
     url = opsview_url + 'rest/config/servicecheck/' + serviceToCloneId
     request = urllib2.Request(url, None, headers)
 
     try:
         ops = ops_opener.open(request)
-        print "Service template:"
         jdata = json.loads(ops.read())
-        print (jdata)
+        logger.debug('Service template: \n%s', jdata)
 
     except urllib2.URLError, e:
-        print("Could not get host template. %s: %s" % (e.code, e.read()))
+        logger.error('Could not get host template. %s: %s', e.code, e.read())
 
     #removing some fields from the template: id
     del jdata['object']['id']
@@ -228,12 +241,57 @@ def cloneService(opsview_url, headers, ops_opener, serviceName, serviceToCloneId
 
     try:
         ops = ops_opener.open(request)
-        print "Service cloning:"
         jdata = json.loads(ops.read())
-        print (jdata)
+        logger.debug('Service cloning: \n%s', jdata)
 
     except urllib2.URLError, e:
-        print("Cannot clone service %s. %s: %s" % (serviceName, e.code, e.read()))
+        logger.debug('Cannot clone service %s. %s: %s', serviceName, e.code, e.read())
+
+
+
+def checkGroup(opsview_url, headers, ops_opener, groupName, groupToCloneId='4'):
+    #getting the json object for service node temperature and using it as service template
+    url = opsview_url + 'rest/config/hostgroup/?json_filter={"name":{"-like":"' + groupName  + '"}}'
+
+    request = urllib2.Request(url, None, headers)
+
+    try:
+        ops = ops_opener.open(request)
+        jdata = json.loads(ops.read())
+        logger.debug('Hostgroup template: \n%s', jdata)
+
+    except urllib2.URLError, e:
+        logger.error('Could not get hostgroup template. %s: %s', e.code, e.read())
+
+    if len(jdata['list']) == 0:
+       #getting template
+       url = opsview_url + 'rest/config/hostgroup/' + groupToCloneId
+       request = urllib2.Request(url, None, headers)
+
+       try:
+           ops = ops_opener.open(request)
+           jdata = json.loads(ops.read())
+           logger.debug('Hostgroup template: \n%s', jdata)
+
+       except urllib2.URLError, e:
+           logger.error('Could not get hostgroup template. %s: %s', e.code, e.read())
+
+       del jdata['object']['id']
+       del jdata['object']['hosts']
+       del jdata['object']['is_leaf']
+       jdata['object']['name'] = groupName
+  
+       #creating new group
+       url = opsview_url + 'rest/config/hostgroup/'
+       request = urllib2.Request(url, json.dumps(jdata), headers)
+
+       try:
+           ops = ops_opener.open(request)
+           jdata = json.loads(ops.read())
+           logger.debug('Host group cloning: \n%s',jdata)
+
+       except urllib2.URLError, e:
+           logger.error('Cannot clone  host group %s. %s: %s', groupName, e.code, e.read())
 
 
 
@@ -244,12 +302,11 @@ def deleteService(opsview_url, headers, ops_opener, serviceToDeleteName):
        
     try:  
         ops = ops_opener.open(request)
-        print "Services:"
         jdata = json.loads(ops.read())
-        #pprint.pprint(jdata['object']['servicechecks'])
+        logger.debug('Services: \n%s', jdata['object']['servicechecks'])
     
     except urllib2.URLError, e:
-        print("Cannot get host template. %s: %s" % (e.code, e.read()))
+        logger.error('Cannot get host template. %s: %s', e.code, e.read())
 
     for service in jdata['object']['servicechecks']:
         if serviceToDeleteName in service['name']:
@@ -262,12 +319,38 @@ def deleteService(opsview_url, headers, ops_opener, serviceToDeleteName):
 
     try:
         ops = ops_opener.open(request)
-        print "Services group updating:"
         jdata = json.loads(ops.read())
-        print (jdata)
+        logger.debug('Services group updating: \n%s', jdata)
 
     except urllib2.URLError, e:
-        print("Cannot update service group info. %s: %s" % (e.code, e.read()))
+        logger.error('Cannot update service group info. %s: %s', e.code, e.read())
+
+
+
+def deleteHost(opsview_url, headers, ops_opener, hostToDeleteName):
+    url = opsview_url + 'rest/config/host?json_filter={"name":{"-like":"' + hostToDeleteName  + '"}}'
+    request = urllib2.Request(url, None, headers)
+
+    try:
+        ops = ops_opener.open(request)
+        jdata = json.loads(ops.read())
+        logger.debug('Host to delete: \n%s', jdata)
+
+    except urllib2.URLError, e:
+        logger.error('Cannot get host to delete information. %s: %s', e.code, e.read())
+
+    #deleting host
+    url = opsview_url + 'rest/config/host/' + jdata['list'][0]['id']
+    request = urllib2.Request(url, None, headers)
+    request.get_method = lambda:'DELETE'
+
+    try:
+        ops = ops_opener.open(request)
+        jdata = json.loads(ops.read())
+        logger.debug('Deleting host: \n%s', jdata)
+
+    except urllib2.URLError, e:
+        logger.error('Cannot delete host. %s: %s', e.code, e.read())
 
 
 
@@ -300,5 +383,4 @@ def reloadConfiguration(opsview_url, headers, ops_opener):
 
     else:
        logger.error('Opsview server in a bad status! server_status %s',jdata['server_status'])
-       return -1
-    
+       return -1 

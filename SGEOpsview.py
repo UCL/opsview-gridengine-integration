@@ -1,9 +1,7 @@
 #!/usr/bin/python
 
-import subprocess, shlex, pprint, sys, os, getopt, datetime, logging 
+import subprocess, shlex, pprint, sys, os, getopt, datetime, logging, daemon, time, threading, socket 
 import simplejson as json
-import daemon, time
-import threading
 import opsviewREST as rest
 
 
@@ -27,9 +25,11 @@ def generateNSCAMessages(nodesSensorsDataDict, nodesOpsviewDataDict, hostsGroup,
 
         logger.debug(messageToSend)
         sendCommand='/bin/echo -e "' + messageToSend + '" | ' + commandPath + ' ' + serverName + ' -c ' + configFile
-        cmd = subprocess.call(sendCommand, shell=True, stdout=subprocess.PIPE)
-        #TODO: checking if the previous call returns with success
-        logger.info('Information sent to the Opsview server %s for group %s', serverName, group)
+        exitCode = subprocess.call(sendCommand, shell=True)
+        if exitCode == 0:
+           logger.info('Information sent to the Opsview server %s for group %s', serverName, group) 
+        else:
+           logger.error('Error while sending information to the Opsview server %s for group %s', serverName, group)
 
 
 
@@ -133,6 +133,39 @@ def checkSensorsExistance(sensorsToCheck):
 
     logger.debug('Load sensors information retrieved:\n %s', pprint.pformat(globalSensorsInfo))    
     return globalSensorsInfo
+
+
+
+def getHostInfo(name):
+    try:
+        ip=socket.gethostbyname(name)
+    except socket.gaierror, e:
+           print 'Cannot resolve the host name provided - assigning fake IP to host %s' % name
+           ip='none'
+
+    if 'usertest' in name:
+       group='Usertest'
+    elif not name.split('-')[1].isdigit():
+         group='CU-' + name.split('-')[1][0].upper()
+    else:
+         group = 'Serial' 
+    return ip, group
+
+
+
+def compareHosts(sgeHosts, opsviewHosts):
+    comparison = {'add':[],
+                  'del':[]
+                 }
+    
+    for host in sgeHosts.keys():
+        if host not in opsviewHosts.keys():
+           comparison['add'].append(host)
+        
+    for host in opsviewHosts.keys():
+        if host not in sgeHosts.keys() and ('node' in host or 'usertest' in host):
+           comparison['del'].append(host)
+    return comparison
 
 
 
@@ -405,6 +438,22 @@ def checkLoop(loadSensors, doSync, checkTime=120, envFile='/usr/local/nagios/lib
     if doSync:
               opsviewServer, opsviewHeaders, opener = rest.opsviewAuthentication()
               SGEglobal, SGEHost, OpsHost, hostsgroup = getHostsServicesFromSGEAndOpsview(opsviewServer, opsviewHeaders, opener)
+
+              #syncing hosts between SGE and Opsview
+              hostsDiff = compareHosts(SGEHost, OpsHost)
+
+              #adding new SGE hosts into Opsview
+              for hostName in hostsDiff['add']:
+                  hostIP, hostGroup = getHostInfo(hostName)
+                  if hostIP != 'none':
+                     rest.checkGroup(opsviewServer, opsviewHeaders, opener, hostGroup)
+                     rest.cloneHost(opsviewServer, opsviewHeaders, opener, hostName, hostIP, hostGroup)
+
+              #deleting from Opsview those nodes no longer defined in SGE
+              for hostName in hostsDiff['del']:
+                  #rest.deleteHost(opsviewServer, opsviewHeaders, opener, hostName)
+                  logger.debug('I would have deleted host %s from Opsview', hostName)
+
               OPS = getGlobalServicesFromOpsview(opsviewServer, opsviewHeaders, opener)
 
               try:
