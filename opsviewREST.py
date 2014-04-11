@@ -95,6 +95,7 @@ def deleteHostService(opsview_url, headers, ops_opener, hostName, serviceToDelet
         from the host identified by hostName in Opsview'''
 
     #retrieving information for host hostName and storing them as json object
+    logger.info('Deleting service %s from host %s', serviceToDeleteName, hostName)
     url = opsview_url + 'rest/config/host?json_filter={"name":{"-like":"' + hostName + '"}}'
     request = urllib2.Request(url, None, headers)
 
@@ -203,7 +204,7 @@ def modifyHostsServices(opsviewDict, opsview_url, headers, ops_opener):
 def cloneHost(opsview_url, headers, ops_opener, hostName, ip, group, hostToCloneId='2'):
     url = opsview_url + 'rest/config/host/' + hostToCloneId
     request = urllib2.Request(url, None, headers)
-
+    logger.info('cloning host with id %s to host %s', hostToCloneId, hostName)
     try:
         ops = ops_opener.open(request)
         jdata = json.loads(ops.read())
@@ -270,9 +271,9 @@ def cloneService(opsview_url, headers, ops_opener, serviceName, serviceToCloneId
 def checkGroup(opsview_url, headers, ops_opener, groupName, groupToCloneId='4'):
     #getting the json object for service node temperature and using it as service template
     url = opsview_url + 'rest/config/hostgroup/?json_filter={"name":{"-like":"' + groupName  + '"}}'
-
     request = urllib2.Request(url, None, headers)
-
+    logger.info('checking existance of group %s', groupName)
+    
     try:
         ops = ops_opener.open(request)
         jdata = json.loads(ops.read())
@@ -285,7 +286,7 @@ def checkGroup(opsview_url, headers, ops_opener, groupName, groupToCloneId='4'):
        #getting template
        url = opsview_url + 'rest/config/hostgroup/' + groupToCloneId
        request = urllib2.Request(url, None, headers)
-
+  
        try:
            ops = ops_opener.open(request)
            jdata = json.loads(ops.read())
@@ -302,6 +303,7 @@ def checkGroup(opsview_url, headers, ops_opener, groupName, groupToCloneId='4'):
        #creating new group
        url = opsview_url + 'rest/config/hostgroup/'
        request = urllib2.Request(url, json.dumps(jdata), headers)
+       logger.info('group %s does not exist - creating it', groupName)
 
        try:
            ops = ops_opener.open(request)
@@ -348,7 +350,7 @@ def deleteService(opsview_url, headers, ops_opener, serviceToDeleteName):
 def deleteHost(opsview_url, headers, ops_opener, hostToDeleteName):
     url = opsview_url + 'rest/config/host?json_filter={"name":{"-like":"' + hostToDeleteName  + '"}}'
     request = urllib2.Request(url, None, headers)
-
+    logger.info('deleting host %s', hostToDeleteName)
     try:
         ops = ops_opener.open(request)
         jdata = json.loads(ops.read())
