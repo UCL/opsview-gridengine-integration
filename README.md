@@ -44,7 +44,7 @@ $ cat conf.json
 The other options supported by the daemon are:
 
 * *\[-f \| \--foreground\]* for starting the daemon as a standard console program (foreground). The logging messages will be produced on the console and nothing will be written on the logfile.
-* *\[-s \| \--sync\]* for synchronizing the host list currently defined in SGE and the list defined in Opsview. This will also sync SGE load sensors for each host before entering the data retrieval loop. The process takes a very long time to be carried out although it is implemented using a multi-threaded algorithm (3-4 minutes). At the end it will also restart the Opsview monitoring server for updating the related configuration.
+* *\[-s \| \--sync\]* for synchronizing the hosts list currently defined in SGE and the hosts list defined in Opsview. This will also sync the SGE load sensors for each host before entering the data retrieval loop. The process takes a very long time to be carried out although it is implemented using a multi-threaded algorithm (3-4 minutes). At the end it will also restart the Opsview monitoring server for updating the related configuration.
 
 The service *sgeopsview* can be started/stopped using the 'service' Red Hat utility. If you wish to start it and carrying out SGE - Opsview sensors/services synchronization before, you can just type the following command:
 
