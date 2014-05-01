@@ -584,10 +584,10 @@ def getHostsServicesFromSGEAndOpsview(opsviewServer, opsviewHeaders, opener):
 
 
 def syncHostsServices(SGEHostsServices, opsviewHostsServices, opsviewServer, opsviewHeaders, opener, hostsgroup):
-    #deleting opsview services from hosts where the associated load sensors do not exist
 
     logger.info('Synchronizing services between SGE and Opsview for each host')
-
+    
+    #deleting opsview services from hosts where the associated load sensors do not exist
     for host in SGEHostsServices.keys():
         if host in opsviewHostsServices.keys():
            existingServices = []          
@@ -596,8 +596,22 @@ def syncHostsServices(SGEHostsServices, opsviewHostsServices, opsviewServer, ops
                   if service['name'] in SGEHostsServices[host]:
                      existingServices.append(service)
               opsviewHostsServices[host]['servicechecks'] = existingServices
-    
-    #TODO: adding opsview services into hosts where the associated load sensor exist and do not into opsview? 
+
+    #adding to Opsview those services that are defined in SGE but are not in Opsview already
+    for host in SGEHostsServices.keys():
+        if host in opsviewHostsServices.keys():
+           servicelist = []
+           for service in opsviewHostsServices[host]['servicechecks']:
+               servicelist.append(service['name'])
+
+           for sensor in SGEHostsServices[host].keys():
+               if sensor not in servicelist:
+                  logger.debug('Sensor %s on host %s is not defined as Opsview Service', sensor, host)
+                  service['name']=sensor
+                  service['ref']=''
+                  opsviewHostsServices[host]['servicechecks'].append(service)
+                  logger.debug('Updated servicechecks json list for host %s:\n%s', host, opsviewHostsServices[host]['servicechecks'])
+             
 
     #single thread update
     opsviewDict = dict()
