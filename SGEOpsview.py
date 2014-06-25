@@ -38,16 +38,19 @@ def generateNSCAMessages(nodesSensorsDataDict, nodesOpsviewDataDict, hostsGroup,
                    if str(int(nodesSensorsDataDict[currentNode][currentSensor][0])) in messagesDict.keys():
                       message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'queue status: ' + messagesDict[str(int(nodesSensorsDataDict[currentNode][currentSensor][0]))] + '\n'
                    else:
-                      message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'qstat collected value: ' + str(nodesSensorsDataDict[currentNode][currentSensor][0]) + '\n'
+                      #message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'qstat collected value: ' + str(nodesSensorsDataDict[currentNode][currentSensor][0]) + '\n'
+                      message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + '|' + currentSensor + '=' + str(nodesSensorsDataDict[currentNode][currentSensor][0]) + '\n'
+
                    messageToSend= messageToSend + message
 
-        logger.debug(messageToSend)
-        sendCommand='/bin/echo -e "' + messageToSend + '" | ' + commandPath + ' ' + serverName + ' -c ' + configFile
-        exitCode = subprocess.call(sendCommand, shell=True)
-        if exitCode == 0:
-           logger.info('Information sent to the Opsview server %s for group %s', serverName, group) 
-        else:
-           logger.error('Error while sending information to the Opsview server %s for group %s', serverName, group)
+        #logger.debug(messageToSend)
+        logger.info(messageToSend)
+        #sendCommand='/bin/echo -e "' + messageToSend + '" | ' + commandPath + ' ' + serverName + ' -c ' + configFile
+        #exitCode = subprocess.call(sendCommand, shell=True)
+        #if exitCode == 0:
+        #   logger.info('Information sent to the Opsview server %s for group %s', serverName, group) 
+        #else:
+        #   logger.error('Error while sending information to the Opsview server %s for group %s', serverName, group)
 
 
 
