@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 # Copyright (c) 2013, UCL
 # All rights reserved.
 
@@ -15,8 +17,6 @@
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # Author: Francesco Tusa
 
-
-#!/usr/bin/python
 
 import subprocess, shlex, pprint, sys, os, getopt, datetime, logging, daemon, time, threading, socket 
 import simplejson as json
@@ -39,7 +39,7 @@ def generateNSCAMessages(nodesSensorsDataDict, nodesOpsviewDataDict, hostsGroup,
                       message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'queue status: ' + messagesDict[str(int(nodesSensorsDataDict[currentNode][currentSensor][0]))] + '\n'
                    else:
                       #message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'qstat collected value: ' + str(nodesSensorsDataDict[currentNode][currentSensor][0]) + '\n'
-                      message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + '|' + currentSensor + '=' + str(nodesSensorsDataDict[currentNode][currentSensor][0]) + '\n'
+                      message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'text |' + currentSensor + '=' + str(nodesSensorsDataDict[currentNode][currentSensor][0]) + '\n'
                    messageToSend= messageToSend + message
 
         logger.debug(messageToSend)
@@ -317,18 +317,20 @@ def parseHostsState(loadSensorsToMonitor):
                      logger.info('---NEGATIVE---- %s', currentAlarmedSensorValueRaw)
                      currentAlarmedSensorValue=-1
 
-                 #handling the special case of node memory check (G|M) load sensors
-                 elif '.' in currentAlarmedSensorValueRaw:
+                 else:
+                    # checking if the load sensor value has a unit 
                     currentAlarmedSensorValue=currentAlarmedSensorValueRaw[0:-1]
                     unit=currentAlarmedSensorValueRaw[-1]
 
                     if unit == 'G':
                        currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))*1024
-                    elif unit == 'M': 
+                    elif unit == 'M':
                        currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))
-
-                 else:
-                    currentAlarmedSensorValue=float(currentAlarmedSensorValueRaw)
+                    elif unit == 'K':
+                       currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))/1024
+                    else:
+                       # there isn't a unit or the value is in KB (for some specific sensors)
+                       currentAlarmedSensorValue=int(float(currentAlarmedSensorValueRaw))
                     
                  if currentAlarmedSensor not in alarmedSensors.keys():
                     alarmedSensors[currentAlarmedSensor]=currentAlarmedSensorValue
@@ -347,6 +349,8 @@ def parseHostsState(loadSensorsToMonitor):
                            loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))
                        elif 'G' in line.split('=')[1]:
                            loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))*1024
+                       elif 'K' in line.split('=')[1]:
+                           loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))/1024
                        else:
                            loadSensorsValues[checkSensor]=float(line.split('=')[1])
                     elif ':'+checkSensor+'='  in line and 'threshold' not in line and 'u' in queueState: #this condition only deals with non alarmed u status (u, du)
