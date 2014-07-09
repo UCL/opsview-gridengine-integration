@@ -35,11 +35,11 @@ def generateNSCAMessages(nodesSensorsDataDict, nodesOpsviewDataDict, hostsGroup,
         for currentNode in hostsGroup[group].split():
             if currentNode in nodesSensorsDataDict.keys():
                for currentSensor in nodesOpsviewDataDict[currentNode].keys():
-                   if str(int(nodesSensorsDataDict[currentNode][currentSensor][0])) in messagesDict.keys():
+                   if str(nodesSensorsDataDict[currentNode][currentSensor][0]) in messagesDict.keys():
                       message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'queue status: ' + messagesDict[str(int(nodesSensorsDataDict[currentNode][currentSensor][0]))] + '\n'
                    else:
                       #message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'qstat collected value: ' + str(nodesSensorsDataDict[currentNode][currentSensor][0]) + '\n'
-                      message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + 'text |' + currentSensor + '=' + str(nodesSensorsDataDict[currentNode][currentSensor][0]) + '\n'
+                      message=currentNode + '\t' + currentSensor + '\t' + str(nodesOpsviewDataDict[currentNode][currentSensor]) + '\t' + str(nodesSensorsDataDict[currentNode][currentSensor][0])  + ' |' + currentSensor + '=' + str(unit_convert(nodesSensorsDataDict[currentNode][currentSensor][0])) + '\n'
                    messageToSend= messageToSend + message
 
         logger.debug(messageToSend)
@@ -74,10 +74,10 @@ def checkNodesState(loadSensorsDataDict,nodesSensorsDataDict,hostSensorsDict,war
             validAlarmCondition=checkCmpOperations(loadSensorsDataDict[currentSensor][0])
             if validAlarmCondition>0:
                if currentSensor in hostSensorsDict[currentNode].keys():
-                  ###logger.debug('current node: %s, current sensor: %s, value: %s threshold: %s',currentNode,currentSensor,nodesSensorsDataDict[currentNode][currentSensor],loadSensorsDataDict[currentSensor][2])
+                  #logger.debug('current node: %s, current sensor: %s, value: %s threshold: %s',currentNode,currentSensor,nodesSensorsDataDict[currentNode][currentSensor],loadSensorsDataDict[currentSensor][2])
                   exec(
                   #checking and set failure only for those values whose alarm condition is verified but in alarm state also in the SGE queue. Setting critical
-                  "if int(nodesSensorsDataDict[currentNode][currentSensor][0]) " + validAlarmCondition + " int(hostSensorsDict[currentNode][currentSensor]) and len(nodesSensorsDataDict[currentNode][currentSensor])>1:\n" +
+                  "if unit_convert(nodesSensorsDataDict[currentNode][currentSensor][0]) " + validAlarmCondition + " unit_convert(hostSensorsDict[currentNode][currentSensor]) and len(nodesSensorsDataDict[currentNode][currentSensor])>1:\n" +
                   "   nodesOpsviewDataDict[currentNode][currentSensor]=2\n" +
 
                   #this implementation doesn't take care of values close to the threshold and doesn't generate warning for them
@@ -234,6 +234,27 @@ def generateGroups(hostList):
  
     
 
+def unit_convert(valueToConvert):
+    if isinstance(valueToConvert, basestring):
+       unit = valueToConvert[-1]
+       if unit == 'T':
+          value = long(float(valueToConvert[0:-1])*(1024**4))
+       elif unit == 'G':
+          value = long(float(valueToConvert[0:-1])*(1024**3))
+       elif unit == 'M':
+          value = long(float(valueToConvert[0:-1])*(1024**2))
+       elif unit == 'K':
+          value = long(float(valueToConvert[0:-1])*1024)
+       elif unit.isdigit():
+          value = long(float(valueToConvert))
+       else:
+           logger.warning('%s is not a valid unit, assuming it is raw', unit)
+           value = long(float(valueToConvert[0:-1]))
+       logger.debug('VALUE: %s --- UNIT: %s', value, unit)
+       return value
+
+
+
 def getSensorsInfo(hostGroup, hostsInfo):
     '''creates a dictionary that describes how load sensors defined in SGE are mapped on the nodes'''
     
@@ -253,14 +274,20 @@ def getSensorsInfo(hostGroup, hostsInfo):
                thresholds = line.split('       ')[1]
                for currentThreshold in thresholds.split():
                    if currentThreshold.split('=')[0] not in hostThreshold.keys():
-                      if 'G' in currentThreshold.split('=')[1]:
-                         hostThreshold[currentThreshold.split('=')[0]]=int(currentThreshold.split('=')[1][0:-1])*1024
-                      elif 'M' in currentThreshold.split('=')[1]:
-                         hostThreshold[currentThreshold.split('=')[0]]=int(currentThreshold.split('=')[1][0:-1])
-                      else:
-                         hostThreshold[currentThreshold.split('=')[0]] = currentThreshold.split('=')[1]
+                      #check if the threshold value is raw and converting it otherwise
+ 
+                      #hostThreshold[currentThreshold.split('=')[0]] = unit_convert(currentThreshold.split('=')[1])
+                      hostThreshold[currentThreshold.split('=')[0]] = currentThreshold.split('=')[1]
+
+                      #if 'G' in currentThreshold.split('=')[1]:
+                      #   hostThreshold[currentThreshold.split('=')[0]]=int(currentThreshold.split('=')[1][0:-1])*1024
+                      #elif 'M' in currentThreshold.split('=')[1]:
+                      #   hostThreshold[currentThreshold.split('=')[0]]=int(currentThreshold.split('=')[1][0:-1])
+                      #else:
+                      #   hostThreshold[currentThreshold.split('=')[0]] = currentThreshold.split('=')[1]
         if hostName not in hostsInfo.keys():
            hostsInfo[hostName] = hostThreshold
+
 
 
 def parseHostsState(loadSensorsToMonitor):
@@ -314,23 +341,27 @@ def parseHostsState(loadSensorsToMonitor):
                  currentAlarmedSensorValueRaw=line.split('=')[1].split()[0]
 
                  if '-' in currentAlarmedSensorValueRaw:
-                     logger.info('---NEGATIVE---- %s', currentAlarmedSensorValueRaw)
+                     logger.debug('---NEGATIVE---- %s', currentAlarmedSensorValueRaw)
                      currentAlarmedSensorValue=-1
 
                  else:
                     # checking if the load sensor value has a unit 
-                    currentAlarmedSensorValue=currentAlarmedSensorValueRaw[0:-1]
-                    unit=currentAlarmedSensorValueRaw[-1]
+                    #currentAlarmedSensorValue=currentAlarmedSensorValueRaw[0:-1]
+                    #unit=currentAlarmedSensorValueRaw[-1]
 
-                    if unit == 'G':
-                       currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))*1024
-                    elif unit == 'M':
-                       currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))
-                    elif unit == 'K':
-                       currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))/1024
-                    else:
+                    #if unit == 'G':
+                    #   currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))*1024
+                    #elif unit == 'M':
+                    #   currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))
+                    #elif unit == 'K':
+                    #   currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))/1024
+                    #else:
                        # there isn't a unit or the value is in KB (for some specific sensors)
-                       currentAlarmedSensorValue=int(float(currentAlarmedSensorValueRaw))
+                    #   currentAlarmedSensorValue=int(float(currentAlarmedSensorValueRaw))
+
+                    #currentAlarmedSensorValue = unit_convert(currentAlarmedSensorValueRaw)
+                    currentAlarmedSensorValue = currentAlarmedSensorValueRaw
+
                     
                  if currentAlarmedSensor not in alarmedSensors.keys():
                     alarmedSensors[currentAlarmedSensor]=currentAlarmedSensorValue
@@ -345,14 +376,19 @@ def parseHostsState(loadSensorsToMonitor):
                     if ':'+checkSensor+'='  in line and 'threshold' not in line and 'forecast' in checkSensor: #forecast is a global sensor whose value is independent from the host queue status
                        loadSensorsValues[checkSensor]=float(line.split('=')[1])
                     elif ':'+checkSensor+'='  in line and 'threshold' not in line and (queueState == 'n' or queueState == 'd' or queueState == 'o'):  #this condition catches non alarmed 'normal', 'disabled' and 'obsolete' queues
-                       if 'M' in line.split('=')[1]:
-                           loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))
-                       elif 'G' in line.split('=')[1]:
-                           loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))*1024
-                       elif 'K' in line.split('=')[1]:
-                           loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))/1024
-                       else:
-                           loadSensorsValues[checkSensor]=float(line.split('=')[1])
+                       #if 'M' in line.split('=')[1]:
+                       #    loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))
+                       #elif 'G' in line.split('=')[1]:
+                       #    loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))*1024
+                       #elif 'K' in line.split('=')[1]:
+                       #    loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))/1024
+                       #else:
+                       #    loadSensorsValues[checkSensor]=float(line.split('=')[1])
+                       
+                       #loadSensorsValues[checkSensor] = unit_convert(line.split('=')[1])
+                       loadSensorsValues[checkSensor] = line.split('=')[1]
+
+
                     elif ':'+checkSensor+'='  in line and 'threshold' not in line and 'u' in queueState: #this condition only deals with non alarmed u status (u, du)
                        loadSensorsValues[checkSensor]=-1
                                 
