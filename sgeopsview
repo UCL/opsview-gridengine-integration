@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright (c) 2013, UCL
 # All rights reserved.
 
@@ -16,8 +18,6 @@
 # Author: Francesco Tusa
 
 
-#!/bin/bash
-#
 # chkconfig: 345 99 01
 # description: this daemon injects SGE load sensors data into Opsview
 
@@ -65,6 +65,7 @@ start()
       fi
     }
 
+
 stop()
     {
      echo -n "Shutting down $prog service: "
@@ -79,6 +80,7 @@ stop()
      echo
      [ $RETVAL = 0 ] && rm $lockfile
     }
+
 
 syncAndStart()
      {
@@ -108,6 +110,15 @@ syncAndStart()
     }
 
 
+zap()
+     {
+     echo -n "Manually resetting $prog service: "
+
+     kill `ps aux | grep python | grep $prog | awk '{print $2}'`
+     rm -f $pidfile $lockfile
+     }
+
+
 
 case "$1" in
         start)
@@ -131,8 +142,12 @@ case "$1" in
                 start
         ;;
 
+        zap)
+                zap
+        ;;
+
         *)
-                echo "Usage: $0 {start|stop|status|restart|sync}"
+                echo "Usage: $0 {start|stop|status|restart|sync|zap}"
                 exit 1
         ;;
 esac
