@@ -510,8 +510,8 @@ def checkLoop(loadSensors, doSync, checkTime=120, envFile='/usr/local/nagios/lib
 
               #deleting from Opsview those nodes no longer defined in SGE
               for hostName in hostsDiff['del']:
-                  #rest.deleteHost(opsviewServer, opsviewHeaders, opener, hostName)
-                  logger.debug('I would have deleted host %s from Opsview', hostName)
+                  rest.deleteHost(opsviewServer, opsviewHeaders, opener, hostName)
+                  logger.info('I have deleted host %s from Opsview', hostName)
 
               OPS = getGlobalServicesFromOpsview(opsviewServer, opsviewHeaders, opener)
 
