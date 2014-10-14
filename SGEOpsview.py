@@ -125,8 +125,7 @@ def generateGlobalSensorsList(hostsSensors):
 
 
 def checkSensorsExistance(sensorsToCheck):
-    'checks if the tuple of sensors is valid through the qconf command: returns 1 if all the sensors are valid, the name of the first invalid sensor otherwise'
-    'also fill up the sensorsToCheckDict dictionary with alarm conditions and threshold values for each load_sensor'
+    '''checks if the tuple of sensors is valid through the qconf -sc command. This will generate an exception otherwise'''
 
     logger.info('Quering SGE for load sensors interesting parameters')
 
@@ -248,9 +247,14 @@ def unit_convert(valueToConvert):
        elif unit.isdigit():
           value = long(float(valueToConvert))
        else:
-           logger.warning('%s is not a valid unit, assuming it is raw', unit)
-           value = long(float(valueToConvert[0:-1]))
-       logger.debug('VALUE: %s --- UNIT: %s', value, unit)
+           #we realized sometimes the value collected by a temperature load sensor is '(null)'
+           #this caused crashes while trying to convert the value: creating a speciale case
+           #and assigning a non-sensible temperature value
+           if valueToConvert == '(null)':
+              logger.warn('Null value to convert found --- Converting to -275')
+              value = long(float(-275))
+           else: # maybe this else is not needed  
+              value = valueToConvert
        return value
 
 
@@ -271,20 +275,9 @@ def getSensorsInfo(hostGroup, hostsInfo):
             if 'host' in line: 
                hostName = line.split()[1]
             elif 'load_thresholds' in line and 'NONE' not in line:
-               thresholds = line.split('       ')[1]
-               for currentThreshold in thresholds.split():
+               for currentThreshold in line.split()[1:]:
                    if currentThreshold.split('=')[0] not in hostThreshold.keys():
-                      #check if the threshold value is raw and converting it otherwise
- 
-                      #hostThreshold[currentThreshold.split('=')[0]] = unit_convert(currentThreshold.split('=')[1])
                       hostThreshold[currentThreshold.split('=')[0]] = currentThreshold.split('=')[1]
-
-                      #if 'G' in currentThreshold.split('=')[1]:
-                      #   hostThreshold[currentThreshold.split('=')[0]]=int(currentThreshold.split('=')[1][0:-1])*1024
-                      #elif 'M' in currentThreshold.split('=')[1]:
-                      #   hostThreshold[currentThreshold.split('=')[0]]=int(currentThreshold.split('=')[1][0:-1])
-                      #else:
-                      #   hostThreshold[currentThreshold.split('=')[0]] = currentThreshold.split('=')[1]
         if hostName not in hostsInfo.keys():
            hostsInfo[hostName] = hostThreshold
 
@@ -376,24 +369,12 @@ def parseHostsState(loadSensorsToMonitor):
                     if ':'+checkSensor+'='  in line and 'threshold' not in line and 'forecast' in checkSensor: #forecast is a global sensor whose value is independent from the host queue status
                        loadSensorsValues[checkSensor]=float(line.split('=')[1])
                     elif ':'+checkSensor+'='  in line and 'threshold' not in line and (queueState == 'n' or queueState == 'd' or queueState == 'o'):  #this condition catches non alarmed 'normal', 'disabled' and 'obsolete' queues
-                       #if 'M' in line.split('=')[1]:
-                       #    loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))
-                       #elif 'G' in line.split('=')[1]:
-                       #    loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))*1024
-                       #elif 'K' in line.split('=')[1]:
-                       #    loadSensorsValues[checkSensor]=int(float(line.split('=')[1][0:-1]))/1024
-                       #else:
-                       #    loadSensorsValues[checkSensor]=float(line.split('=')[1])
-                       
-                       #loadSensorsValues[checkSensor] = unit_convert(line.split('=')[1])
                        loadSensorsValues[checkSensor] = line.split('=')[1]
-
-
                     elif ':'+checkSensor+'='  in line and 'threshold' not in line and 'u' in queueState: #this condition only deals with non alarmed u status (u, du)
                        loadSensorsValues[checkSensor]=-1
                                 
            
-        #adding the information for the current node to the hosts dictionary vith the collected load sensors values
+        #adding the information for the current node to the hosts dictionary with the collected load sensors values
         if currentNode!='':
 
            #managing host queue states
@@ -489,7 +470,7 @@ def parseConf(filename):
     
 
 
-def checkLoop(loadSensors, doSync, checkTime=120, envFile='/usr/local/nagios/libexec/SGEdaemon/envFile.json'):
+def checkLoop(doSync, checkTime=120, envFile='/usr/local/nagios/libexec/SGEdaemon/envFile.json'):
     '''checks SGE load values every checkTime seconds
     nodesSensorsData is a dictionary that will contain all the hosts to be monitored and data collected by the load sensors
     opsviewNodesStatus is a dictionary that will contain all the values to be sent to the Opsview server'''
@@ -763,12 +744,12 @@ def main(argv):
        context.open()
     
        try:
-          checkLoop(checkInterval, doSync)   
+          checkLoop(doSync, checkInterval)   
        finally:
           context.close() 
    
     else:
-       checkLoop(checkInterval, doSync)
+       checkLoop(doSync, checkInterval)
 
 
 

@@ -112,9 +112,9 @@ syncAndStart()
 
 zap()
      {
-     echo -n "Manually resetting $prog service: "
+     echo "Manually resetting $prog service: "
 
-     kill `ps aux | grep python | grep $prog | awk '{print $2}'`
+     kill `ps aux | grep python | grep $prog | awk '{print $2}'` 2> /dev/null
      rm -f $pidfile $lockfile
      }
 
