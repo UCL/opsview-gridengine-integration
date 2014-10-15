@@ -579,10 +579,12 @@ def getHostsServicesFromSGEAndOpsview(opsviewServer, opsviewHeaders, opener):
 
     hostsInfo = dict()
     threadPool = dict()
+  
+    nagtxtSensors = getNagtxt()
 
     for currentGroup in group.keys():
         logger.info('Creating thread getSensorsInfo for group %s', currentGroup)
-        threadPool[currentGroup] = threading.Thread(target=getSensorsInfo, args=(group[currentGroup],hostsInfo,getNagtxt()))
+        threadPool[currentGroup] = threading.Thread(target=getSensorsInfo, args=(group[currentGroup],hostsInfo,nagtxtSensors))
 
     opsviewHostsDict = dict()
 
