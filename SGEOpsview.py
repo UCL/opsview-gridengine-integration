@@ -231,7 +231,6 @@ def generateGroups(hostList):
     logger.debug('Host groups:\n %s', pprint.pformat(nodesGroup))
     return nodesGroup 
  
-    
 
 def unit_convert(valueToConvert):
     if isinstance(valueToConvert, basestring):
@@ -258,8 +257,24 @@ def unit_convert(valueToConvert):
        return value
 
 
+def getNagtxt():
+    ''' this function has been created to retrieve the complex settings.
+        This is needed to select only those load sensors which have a corresponding
+        _nagtxt entry in the complex. '''
 
-def getSensorsInfo(hostGroup, hostsInfo):
+    #invoking the qconf program for retrieving the list of existing load_sensors
+    getCommandArgs='/cm/shared/apps/sge/6.2u3/bin/lx26-amd64/qconf -sc'
+    getCommand = shlex.split(getCommandArgs)
+    cmd = subprocess.Popen(getCommand, stdout=subprocess.PIPE)
+    out = cmd.communicate()[0].split('\n')[2:-2]
+    validSensors=[]
+    for line in out:
+        if '_nagtxt' in line:
+           validSensors.append(line.split()[0])
+    return validSensors
+
+
+def getSensorsInfo(hostGroup, hostsInfo, validSensors):
     '''creates a dictionary that describes how load sensors defined in SGE are mapped on the nodes'''
     
     logger.debug('Collecting sensors\' information from SGE for hosts: %s', hostGroup)
@@ -276,8 +291,13 @@ def getSensorsInfo(hostGroup, hostsInfo):
                hostName = line.split()[1]
             elif 'load_thresholds' in line and 'NONE' not in line:
                for currentThreshold in line.split()[1:]:
-                   if currentThreshold.split('=')[0] not in hostThreshold.keys():
+                   #This is for considering only those load sensors which have a corresponding _nagtxt in the complex 
+                   #others load sensors don't need to be considered when alarmed as they are being used for implementing
+                   #backfill jobs execution on reserved nodes
+                   if currentThreshold.split('=')[0] not in hostThreshold.keys() and currentThreshold.split('=')[0]+'_nagtxt' in validSensors:
                       hostThreshold[currentThreshold.split('=')[0]] = currentThreshold.split('=')[1]
+                      logger.debug('Sensor %s has a _nagtxt definition', currentThreshold.split('=')[0])
+
         if hostName not in hostsInfo.keys():
            hostsInfo[hostName] = hostThreshold
 
@@ -338,23 +358,7 @@ def parseHostsState(loadSensorsToMonitor):
                      currentAlarmedSensorValue=-1
 
                  else:
-                    # checking if the load sensor value has a unit 
-                    #currentAlarmedSensorValue=currentAlarmedSensorValueRaw[0:-1]
-                    #unit=currentAlarmedSensorValueRaw[-1]
-
-                    #if unit == 'G':
-                    #   currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))*1024
-                    #elif unit == 'M':
-                    #   currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))
-                    #elif unit == 'K':
-                    #   currentAlarmedSensorValue=int(float(currentAlarmedSensorValue))/1024
-                    #else:
-                       # there isn't a unit or the value is in KB (for some specific sensors)
-                    #   currentAlarmedSensorValue=int(float(currentAlarmedSensorValueRaw))
-
-                    #currentAlarmedSensorValue = unit_convert(currentAlarmedSensorValueRaw)
                     currentAlarmedSensorValue = currentAlarmedSensorValueRaw
-
                     
                  if currentAlarmedSensor not in alarmedSensors.keys():
                     alarmedSensors[currentAlarmedSensor]=currentAlarmedSensorValue
@@ -578,7 +582,7 @@ def getHostsServicesFromSGEAndOpsview(opsviewServer, opsviewHeaders, opener):
 
     for currentGroup in group.keys():
         logger.info('Creating thread getSensorsInfo for group %s', currentGroup)
-        threadPool[currentGroup] = threading.Thread(target=getSensorsInfo, args=(group[currentGroup],hostsInfo))
+        threadPool[currentGroup] = threading.Thread(target=getSensorsInfo, args=(group[currentGroup],hostsInfo,getNagtxt()))
 
     opsviewHostsDict = dict()
 
