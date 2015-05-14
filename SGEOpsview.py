@@ -491,7 +491,7 @@ def checkLoop(doSync, checkTime=120, envFile='/usr/local/nagios/libexec/SGEdaemo
                   hostIP, hostGroup = getHostInfo(hostName)
                   if hostIP != 'none':
                      rest.checkGroup(opsviewServer, opsviewHeaders, opener, hostGroup)
-                     rest.cloneHost(opsviewServer, opsviewHeaders, opener, hostName, hostIP, hostGroup)
+                     rest.cloneHost(opsviewServer, opsviewHeaders, opener, hostName, hostIP, hostGroup, '894')
 
               #deleting from Opsview those nodes no longer defined in SGE
               for hostName in hostsDiff['del']:

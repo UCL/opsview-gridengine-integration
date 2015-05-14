@@ -202,9 +202,14 @@ def modifyHostsServices(opsviewDict, opsview_url, headers, ops_opener):
 
 
 def cloneHost(opsview_url, headers, ops_opener, hostName, ip, group, hostToCloneId='2'):
-    url = opsview_url + 'rest/config/host/' + hostToCloneId
-    request = urllib2.Request(url, None, headers)
     logger.info('cloning host with id %s to host %s', hostToCloneId, hostName)
+    logger.debug('opsview_url: %s', opsview_url)
+    logger.debug('hostToCloneId: %s', hostToCloneId)
+    url = opsview_url + 'rest/config/host/' + hostToCloneId
+    logger.debug('URL: %s', url)
+    logger.debug('Headers: %s', headers)
+    request = urllib2.Request(url, None, headers)
+    logger.debug('About to request host template: %s', hostToCloneId)
     try:
         ops = ops_opener.open(request)
         jdata = json.loads(ops.read())
@@ -312,6 +317,8 @@ def checkGroup(opsview_url, headers, ops_opener, groupName, groupToCloneId='4'):
 
        except urllib2.URLError, e:
            logger.error('Cannot clone  host group %s. %s: %s', groupName, e.code, e.read())
+
+    logger.debug('Leaving checkGroup')
 
 
 
