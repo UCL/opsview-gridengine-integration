@@ -286,6 +286,7 @@ def getSensorsInfo(hostGroup, hostsInfo, validSensors):
  
     for host in out.split('---'):
         hostThreshold = dict()
+	hostThreshold['load_avg']=100
         for line in host.split('\n'): 
             if 'host' in line: 
                hostName = line.split()[1]
