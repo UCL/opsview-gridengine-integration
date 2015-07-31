@@ -40,7 +40,7 @@ def SetLogger(logfile, loglevel, runForeground):
 
     
 
-def opsviewAuthentication(opsview_url='http://mon02.external.legion.ucl.ac.uk:3000/', opsview_user = 'admin', opsview_password = 'M4Jd+jcQ'):
+def opsviewAuthentication(opsview_url='http://mon02.external.legion.ucl.ac.uk:3000/', opsview_user = 'admin', opsview_password = 'CHANGEME'):
     '''creates a connection to the opsview server and allow authentication with the provided credentials. The three returned parameters 
        have to be used for subsequent interactions with the server'''
 
