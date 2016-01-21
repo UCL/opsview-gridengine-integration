@@ -40,7 +40,7 @@ def SetLogger(logfile, loglevel, runForeground):
 
     
 
-def opsviewAuthentication(opsview_url='http://mon02.external.legion.ucl.ac.uk:3000/', opsview_user = 'admin', opsview_password = 'M4Jd+jcQ'):
+def opsviewAuthentication(opsview_url='http://mon02.external.legion.ucl.ac.uk:3000/', opsview_user = 'admin', opsview_password = 'hHa4_rJ2'):
     '''creates a connection to the opsview server and allow authentication with the provided credentials. The three returned parameters 
        have to be used for subsequent interactions with the server'''
 
@@ -138,7 +138,7 @@ def fetchServerInfo(opsview_url, headers, ops_opener):
 
 def retrieveExistingServices(opsview_url, headers, ops_opener):
     
-    #retrieving services for the SGE group (45)   
+    #retrieving services for the SonOfSGE group (65)   
     url = opsview_url + "rest/config/servicegroup/45"
     request = urllib2.Request(url, None, headers)
     existingServices = []   
@@ -155,11 +155,11 @@ def retrieveExistingServices(opsview_url, headers, ops_opener):
             #Sun Grid Engine is not a load sensor: discarding it
             if 'Sun Grid Engine' not in serviceName['name']:
                existingServices.append(serviceName['name'])
-        logger.debug('Services defined into Opsview: %s', pprint.pformat(existingServices))    
+        logger.info('Services defined into Opsview: %s', pprint.pformat(existingServices))    
         return existingServices
     
     except urllib2.URLError, e:
-        logger.debug('Cannot list existing services. %s: %s', e.code, e.read())
+        logger.info('Cannot list existing services. %s: %s', e.code, e.read())
         sys.exit(-1)
 
 
@@ -167,7 +167,7 @@ def retrieveExistingServices(opsview_url, headers, ops_opener):
 def retrieveHostsServices(opsviewDict, opsview_url, headers, ops_opener):
 
     #retrieving Host services for all the nodes   
-    url = opsview_url + 'rest/config/host?rows=all'
+    url = opsview_url + 'rest/config/host?rows=all&json_filter={"name":{"-rlike":"^node-[a-z][0-9][0-9][a-z]-[0-9][0-9][0-9]$"}}'
     logger.info('Retrieving services information from Opsview for all the hosts')
    
     request = urllib2.Request(url, None, headers)
@@ -194,7 +194,7 @@ def modifyHostsServices(opsviewDict, opsview_url, headers, ops_opener):
     try:
         ops = ops_opener.open(request)
         jdata = json.loads(ops.read())
-        logger.debug('Opsview response to the host service update request:\n %s',pprint.pformat(jdata))
+        logger.info('Opsview response to the host service update request:\n %s',pprint.pformat(jdata))
     except urllib2.URLError, e:
         logger.error('Cannot update host services. %s: %s',e.code, e.read())
         sys.exit(-1)
@@ -366,7 +366,9 @@ def deleteHost(opsview_url, headers, ops_opener, hostToDeleteName):
     except urllib2.URLError, e:
         logger.error('Cannot get host to delete information. %s: %s', e.code, e.read())
 
-    #deleting host
+    #logger.info('NOT DELETING HOST ATM host: \n%s', hostToDeleteName)
+
+    ##deleting host
     url = opsview_url + 'rest/config/host/' + jdata['list'][0]['id']
     request = urllib2.Request(url, None, headers)
     request.get_method = lambda:'DELETE'
