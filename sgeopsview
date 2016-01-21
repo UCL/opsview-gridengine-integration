@@ -28,7 +28,7 @@
 . /etc/rc.d/init.d/functions
 
 prog=SGEOpsview.py
-path=/usr/local/nagios/libexec/SGEdaemon
+path=/opt/ucl/opsview-gridengine-integration
 conf=conf.json
 env=sge-env #this is used for starting the daemon through the 'service' command
 
@@ -134,6 +134,7 @@ case "$1" in
         ;;
 
         sync)
+                stop
                 syncAndStart
         ;;
 
