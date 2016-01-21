@@ -18,11 +18,11 @@
 # Author: Francesco Tusa
 
 
-import subprocess, shlex, pprint, sys, os, getopt, datetime, logging, daemon, time, threading, socket 
+import subprocess, shlex, pprint, sys, os, getopt, datetime, logging, daemon, time, threading, socket, re
 import simplejson as json
 import opsviewREST as rest
 
-
+SGE_ROOT='/opt/sge'
 
 def generateNSCAMessages(nodesSensorsDataDict, nodesOpsviewDataDict, hostsGroup, commandPath='/usr/local/nagios/bin/send_nsca', serverName='mon02.data.legion.ucl.ac.uk', configFile='/usr/local/nagios/etc/send_nsca.cfg'):
     'generates passive alerts considering the dictionaries filled up by checkNodesState()'
@@ -85,8 +85,9 @@ def checkNodesState(loadSensorsDataDict,nodesSensorsDataDict,hostSensorsDict,war
                   #"     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
                
                   #setting unknown for load sensors whose queues are uncontactable
-                  "elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
-                  "     nodesOpsviewDataDict[currentNode][currentSensor]=3\n" +
+                  # Now added a 'queuestatus' loadsensor if any of the queues are uncontactable...
+                  #"elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
+                  #"     nodesOpsviewDataDict[currentNode][currentSensor]=3\n" +
 
                   ##setting warning for SGE unknown values (old implementation)
                   #"elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
@@ -119,6 +120,7 @@ def generateGlobalSensorsList(hostsSensors):
     for currentHost in hostsSensors.keys():
         for currentSensor in hostsSensors[currentHost].keys():
             if currentSensor not in globalSensors.keys():
+               logger.info('Adding sensor: %s to globalSensors.',currentSensor)
                globalSensors[currentSensor] = hostsSensors[currentHost][currentSensor]
     return globalSensors
 
@@ -130,7 +132,7 @@ def checkSensorsExistance(sensorsToCheck):
     logger.info('Quering SGE for load sensors interesting parameters')
 
     #invoking the qconf program for retrieving the list of existing load_sensors
-    getCommandArgs='/cm/shared/apps/sge/6.2u3/bin/lx26-amd64/qconf -sc'
+    getCommandArgs=SGE_ROOT+'/bin/lx-amd64/qconf -sc'
     getCommand = shlex.split(getCommandArgs)
     
     cmd = subprocess.Popen(getCommand, stdout=subprocess.PIPE)
@@ -161,12 +163,13 @@ def getHostInfo(name):
            print 'Cannot resolve the host name provided - assigning fake IP to host %s' % name
            ip='none'
 
-    if 'usertest' in name:
-       group='Usertest'
-    elif not name.split('-')[1].isdigit():
-         group='CU-' + name.split('-')[1][0].upper()
-    else:
-         group = 'Serial' 
+    #if 'usertest' in name:
+    #   group='Usertest'
+    group=name.split('-')[1]
+    #elif not name.split('-')[1].isdigit():
+    #     group='CU-' + name.split('-')[1][0].upper()
+    #else:
+    #     group = 'Serial' 
     return ip, group
 
 
@@ -192,7 +195,7 @@ def getHostsList():
 
     logger.info('Collecting the hosts list from SGE')
 
-    getCommandArgs='/cm/shared/apps/sge/6.2u3/bin/lx26-amd64/qconf -sel'
+    getCommandArgs=SGE_ROOT+'/bin/lx-amd64/qconf -sel'
     getCommand = shlex.split(getCommandArgs)
     cmd = subprocess.Popen(getCommand, stdout=subprocess.PIPE)
     out = cmd.communicate()[0]
@@ -215,20 +218,26 @@ def generateGroups(hostList):
 
     for host in hostList:
         try: 
-           group = host.split('-')[1][0]
-
-           if not group.isdigit():
-              if group not in nodesGroup.keys(): nodesGroup[group] = host + ' '
-              else: nodesGroup[group] += host + ' '
+           group = host.split('-')[1]
+           if group not in nodesGroup.keys():
+               nodesGroup[group] = host + ' '
            else:
-              if 'fatAndSerial' not in nodesGroup.keys(): nodesGroup['fatAndSerial'] = host + ' '
-              else: nodesGroup['fatAndSerial'] += host + ' '
-
+               nodesGroup[group] += host + ' '
         except IndexError:
-           if 'usertest' not in nodesGroup.keys(): nodesGroup['usertest'] = host + ' '
-           else: nodesGroup['usertest'] += host + ' '
+           logger.error('Invalid host: %s\n',host)
 
-    logger.debug('Host groups:\n %s', pprint.pformat(nodesGroup))
+           #if not group.isdigit():
+           #   if group not in nodesGroup.keys(): nodesGroup[group] = host + ' '
+           #   else: nodesGroup[group] += host + ' '
+           #else:
+           #   if 'fatAndSerial' not in nodesGroup.keys(): nodesGroup['fatAndSerial'] = host + ' '
+           #   else: nodesGroup['fatAndSerial'] += host + ' '
+
+        #except IndexError:
+        #   if 'usertest' not in nodesGroup.keys(): nodesGroup['usertest'] = host + ' '
+        #   else: nodesGroup['usertest'] += host + ' '
+
+    logger.info('Host groups:\n %s', pprint.pformat(nodesGroup))
     return nodesGroup 
  
 
@@ -263,7 +272,7 @@ def getNagtxt():
         _nagtxt entry in the complex. '''
 
     #invoking the qconf program for retrieving the list of existing load_sensors
-    getCommandArgs='/cm/shared/apps/sge/6.2u3/bin/lx26-amd64/qconf -sc'
+    getCommandArgs=SGE_ROOT+'/bin/lx-amd64/qconf -sc'
     getCommand = shlex.split(getCommandArgs)
     cmd = subprocess.Popen(getCommand, stdout=subprocess.PIPE)
     out = cmd.communicate()[0].split('\n')[2:-2]
@@ -279,14 +288,14 @@ def getSensorsInfo(hostGroup, hostsInfo, validSensors):
     
     logger.debug('Collecting sensors\' information from SGE for hosts: %s', hostGroup)
 
-    getCommand='for host in ' + hostGroup + '; do echo "host $host"; SGE_SINGLE_LINE=true /cm/shared/apps/sge/6.2u3/bin/lx26-amd64/qconf -sq  *@$host 2> /dev/null| grep load_thresholds; echo "---" | sort -u; done'
+    getCommand='for host in ' + hostGroup + '; do echo "host $host"; SGE_SINGLE_LINE=true '+SGE_ROOT+'/bin/lx-amd64/qconf -sq  *@$host 2> /dev/null| grep load_thresholds; echo "---" | sort -u; done'
 
     cmd = subprocess.Popen(getCommand, stdout=subprocess.PIPE, shell=True)
     out = cmd.communicate()[0]
  
     for host in out.split('---'):
         hostThreshold = dict()
-	hostThreshold['load_avg']=100
+	#hostThreshold['load_avg']=100
         for line in host.split('\n'): 
             if 'host' in line: 
                hostName = line.split()[1]
@@ -315,7 +324,7 @@ def parseHostsState(loadSensorsToMonitor):
     logger.info('Collecting load sensors values from SGE')
     #invoking the qstat program for retrieving the nodes' state
 
-    getCommandArgs='/cm/shared/apps/sge/6.2u3/bin/lx26-amd64/qstat -explain a -F'
+    getCommandArgs=SGE_ROOT+'/bin/lx-amd64/qstat -explain a -F'
     getCommand = shlex.split(getCommandArgs)
     
     cmd = subprocess.Popen(getCommand, stdout=subprocess.PIPE)
@@ -451,6 +460,8 @@ def parseConf(filename):
        logger.debug('Configuration file correctly parsed')
     f.close()  
  
+    global CONFIG
+    CONFIG=dict()
     for optionKey in jConf.keys():
         if 'logfile' in optionKey: 
            logFile=jConf[optionKey]
@@ -464,6 +475,8 @@ def parseConf(filename):
         #     sensors=jConf[optionKey]
         elif 'check_interval' in optionKey:
              checkInterval=jConf[optionKey]
+	else:
+             CONFIG[optionKey]=jConf[optionKey]
 
     try:
        #return logFile, logLevel, sensors, int(checkInterval)       
@@ -475,7 +488,7 @@ def parseConf(filename):
     
 
 
-def checkLoop(doSync, checkTime=120, envFile='/usr/local/nagios/libexec/SGEdaemon/envFile.json'):
+def checkLoop(doSync, checkTime=120, envFile='/opt/ucl/opsview-gridengine-integration/envFile.json'):
     '''checks SGE load values every checkTime seconds
     nodesSensorsData is a dictionary that will contain all the hosts to be monitored and data collected by the load sensors
     opsviewNodesStatus is a dictionary that will contain all the values to be sent to the Opsview server'''
@@ -492,7 +505,7 @@ def checkLoop(doSync, checkTime=120, envFile='/usr/local/nagios/libexec/SGEdaemo
                   hostIP, hostGroup = getHostInfo(hostName)
                   if hostIP != 'none':
                      rest.checkGroup(opsviewServer, opsviewHeaders, opener, hostGroup)
-                     rest.cloneHost(opsviewServer, opsviewHeaders, opener, hostName, hostIP, hostGroup, '894')
+                     rest.cloneHost(opsviewServer, opsviewHeaders, opener, hostName, hostIP, hostGroup, '1525')
 
               #deleting from Opsview those nodes no longer defined in SGE
               for hostName in hostsDiff['del']:
@@ -523,6 +536,7 @@ def checkLoop(doSync, checkTime=120, envFile='/usr/local/nagios/libexec/SGEdaemo
               environment['SGEHost']=SGEHost      
   
               logger.debug('Environment file is %s', envFile)
+              logger.info('Saving to config file: %s', envFile)
  
               f = open(envFile, 'w')
               f.write(json.dumps(environment))
@@ -596,10 +610,19 @@ def getHostsServicesFromSGEAndOpsview(opsviewServer, opsviewHeaders, opener):
 
     tOps.start()
 
+    logger.info("Waiting for SGE threads....")
     for currentGroup in group.keys():
         threadPool[currentGroup].join()
 
+    logger.info("Waiting for Opsview thread....")
     tOps.join()
+
+    for host in opsviewHostsDict.keys():
+	if re.match(r"^node-[a-z][0-9][0-9][a-z]-[0-9][0-9][0-9]", host):
+		logger.info('Matched Opsview host: %s',host)
+	else:
+		logger.info('Ignoring unmatched Opsview host: %s',host)
+		del opsviewHostsDict[host]
 
     logger.debug('Collected information from SGE for each host:\n %s', pprint.pformat(hostsInfo))
   
@@ -631,22 +654,25 @@ def syncHostsServices(SGEHostsServices, opsviewHostsServices, opsviewServer, ops
         if host in opsviewHostsServices.keys():
            servicelist = []
            for service in opsviewHostsServices[host]['servicechecks']:
+               logger.info('Service %s exists in opsview',service['name'])
                servicelist.append(service['name'])
 
            for sensor in SGEHostsServices[host].keys():
+               service=dict()
                if sensor not in servicelist:
-                  logger.debug('Sensor %s on host %s is not defined as Opsview Service', sensor, host)
+                  logger.info('Sensor %s on host %s is not defined as Opsview Service', sensor, host)
                   service['name']=sensor
                   service['ref']=''
                   opsviewHostsServices[host]['servicechecks'].append(service)
-                  logger.debug('Updated servicechecks json list for host %s:\n%s', host, opsviewHostsServices[host]['servicechecks'])
              
 
     #single thread update
     opsviewDict = dict()
     opsviewDict['list'] = []
 
-    for host in opsviewHostsServices.keys(): opsviewDict['list'].append(opsviewHostsServices[host])
+    for host in opsviewHostsServices.keys():
+        opsviewDict['list'].append(opsviewHostsServices[host])
+    
     rest.modifyHostsServices(opsviewDict, opsviewServer, opsviewHeaders, opener)
     logger.info('All hosts services have been synchronized between SGE and Opsview')
 
@@ -686,6 +712,10 @@ def syncGlobalServices(SGEServices, opsviewServices, opsviewServer, opsviewHeade
 
     logger.info('Synchronizing services between SGE and Opsview')
 
+    logger.info('Current Opsview services: %s', opsviewServices)
+    logger.info('Current SGE services: %s', SGEServices.keys())
+	
+
     if len(SGEServices) < 1: 
        logger.error('No services coming from SGE!')
        sys.exit(-1)
@@ -697,8 +727,8 @@ def syncGlobalServices(SGEServices, opsviewServices, opsviewServer, opsviewHeade
         
        for service in opsviewServices:
            if service not in SGEServices:
-              logger.info('service %s exists into Opsview and does not into SGE', service)
-              rest.deleteService(opsviewServer, opsviewHeaders, opener, service)
+              logger.info('service %s exists into Opsview and does not into SGE (but who cares? not deleting', service)
+              #rest.deleteService(opsviewServer, opsviewHeaders, opener, service)
 
 
 
