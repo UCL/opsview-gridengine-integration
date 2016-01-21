@@ -1,1 +1,1 @@
-export SGE_ROOT=/cm/shared/apps/sge/6.2u3
+export SGE_ROOT=/opt/sge
