@@ -40,7 +40,7 @@ def SetLogger(logfile, loglevel, runForeground):
 
     
 
-def opsviewAuthentication(opsview_url='http://mon02.external.legion.ucl.ac.uk:3000/', opsview_user = 'admin', opsview_password = 'M4Jd+jcQ'):
+def opsviewAuthentication(opsview_url='http://mon02.external.legion.ucl.ac.uk:3000/', opsview_user = 'admin', opsview_password = 'hHa4_rJ2'):
     '''creates a connection to the opsview server and allow authentication with the provided credentials. The three returned parameters 
        have to be used for subsequent interactions with the server'''
 
@@ -365,6 +365,9 @@ def deleteHost(opsview_url, headers, ops_opener, hostToDeleteName):
 
     except urllib2.URLError, e:
         logger.error('Cannot get host to delete information. %s: %s', e.code, e.read())
+
+    #logger.info('NOT DELETING HOST ATM host: \n%s', jdata)
+    # Comment below here to disable deletion
 
     #deleting host
     url = opsview_url + 'rest/config/host/' + jdata['list'][0]['id']

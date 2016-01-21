@@ -18,7 +18,7 @@
 # Author: Francesco Tusa
 
 
-import subprocess, shlex, pprint, sys, os, getopt, datetime, logging, daemon, time, threading, socket 
+import subprocess, shlex, pprint, sys, os, getopt, datetime, logging, daemon, time, threading, socket, re
 import simplejson as json
 import opsviewREST as rest
 
@@ -85,8 +85,9 @@ def checkNodesState(loadSensorsDataDict,nodesSensorsDataDict,hostSensorsDict,war
                   #"     nodesOpsviewDataDict[currentNode][currentSensor]=1\n" +
                
                   #setting unknown for load sensors whose queues are uncontactable
-                  "elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
-                  "     nodesOpsviewDataDict[currentNode][currentSensor]=3\n" +
+                  # Now added a 'queuestatus' loadsensor if any of the queues are uncontactable...
+                  #"elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
+                  #"     nodesOpsviewDataDict[currentNode][currentSensor]=3\n" +
 
                   ##setting warning for SGE unknown values (old implementation)
                   #"elif nodesSensorsDataDict[currentNode][currentSensor][0]==-1:\n" +
@@ -220,6 +221,8 @@ def generateGroups(hostList):
            if not group.isdigit():
               if group not in nodesGroup.keys(): nodesGroup[group] = host + ' '
               else: nodesGroup[group] += host + ' '
+           elif host=='node-701':
+              nodesGroup['crazynewgroup'] = host + ' '
            else:
               if 'fatAndSerial' not in nodesGroup.keys(): nodesGroup['fatAndSerial'] = host + ' '
               else: nodesGroup['fatAndSerial'] += host + ' '
@@ -286,7 +289,7 @@ def getSensorsInfo(hostGroup, hostsInfo, validSensors):
  
     for host in out.split('---'):
         hostThreshold = dict()
-	hostThreshold['load_avg']=100
+	#hostThreshold['load_avg']=100
         for line in host.split('\n'): 
             if 'host' in line: 
                hostName = line.split()[1]
@@ -492,7 +495,7 @@ def checkLoop(doSync, checkTime=120, envFile='/usr/local/nagios/libexec/SGEdaemo
                   hostIP, hostGroup = getHostInfo(hostName)
                   if hostIP != 'none':
                      rest.checkGroup(opsviewServer, opsviewHeaders, opener, hostGroup)
-                     rest.cloneHost(opsviewServer, opsviewHeaders, opener, hostName, hostIP, hostGroup, '894')
+                     rest.cloneHost(opsviewServer, opsviewHeaders, opener, hostName, hostIP, hostGroup, '900')
 
               #deleting from Opsview those nodes no longer defined in SGE
               for hostName in hostsDiff['del']:
@@ -523,6 +526,7 @@ def checkLoop(doSync, checkTime=120, envFile='/usr/local/nagios/libexec/SGEdaemo
               environment['SGEHost']=SGEHost      
   
               logger.debug('Environment file is %s', envFile)
+              logger.info('Saving to config file: %s', envFile)
  
               f = open(envFile, 'w')
               f.write(json.dumps(environment))
@@ -596,10 +600,20 @@ def getHostsServicesFromSGEAndOpsview(opsviewServer, opsviewHeaders, opener):
 
     tOps.start()
 
+    logger.info("Waiting for SGE threads....")
     for currentGroup in group.keys():
         threadPool[currentGroup].join()
 
+    logger.info("Waiting for Opsview thread....")
     tOps.join()
+
+    for host in opsviewHostsDict.keys():
+        if re.match(r"^node-[a-z0-9][0-9][0-9]$", host):
+                logger.info('Matched Opsview host: %s',host)
+        else:
+                logger.info('Ignoring unmatched Opsview host: %s',host)
+                del opsviewHostsDict[host]
+
 
     logger.debug('Collected information from SGE for each host:\n %s', pprint.pformat(hostsInfo))
   
