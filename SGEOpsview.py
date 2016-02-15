@@ -349,7 +349,7 @@ def parseHostsState(loadSensorsToMonitor):
         for line in host.split('\n'):
 
             #check if the current line contains the hostname information
-            if '@' in line:
+            if re.match('^[A-Za-z][a-z]*\@',line):
                if len(line.split()) > 5:
                   queueState = line.split()[-1]
                else:
