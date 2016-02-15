@@ -46,7 +46,8 @@ def generateNSCAMessages(nodesSensorsDataDict, nodesOpsviewDataDict, hostsGroup,
         sendCommand='/bin/echo -e "' + messageToSend + '" | ' + commandPath + ' ' + serverName + ' -c ' + configFile
         exitCode = subprocess.call(sendCommand, shell=True)
         if exitCode == 0:
-           logger.info('Information sent to the Opsview server %s for group %s', serverName, group) 
+           logger.info('Information sent to the Opsview server %s for group %s - sleep 10', serverName, group)
+           time.sleep(10)
         else:
            logger.error('Error while sending information to the Opsview server %s for group %s', serverName, group)
 
