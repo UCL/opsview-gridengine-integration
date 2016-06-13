@@ -273,7 +273,7 @@ def cloneService(opsview_url, headers, ops_opener, serviceName, serviceToCloneId
 
 
 
-def checkGroup(opsview_url, headers, ops_opener, groupName, groupToCloneId='4'):
+def checkGroup(opsview_url, headers, ops_opener, groupName, groupToCloneId='86'):
     #getting the json object for service node temperature and using it as service template
     url = opsview_url + 'rest/config/hostgroup/?json_filter={"name":{"-like":"' + groupName  + '"}}'
     request = urllib2.Request(url, None, headers)
